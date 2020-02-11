@@ -1,0 +1,22 @@
+apiVersion: kubedb.com/v1alpha1
+kind: MySQL
+metadata:
+  name: mysql
+spec:
+  version: '8.0-v2'
+  storageType: Durable
+  storage:
+    storageClassName: 'standard'
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 1Gi
+  podTemplate:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      args:
+        - --default-authentication-plugin=mysql_native_password
+  terminationPolicy: DoNotTerminate
