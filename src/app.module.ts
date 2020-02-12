@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { RepositoryController } from './controllers/repository.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProjectEntity } from './database/entities/project.entity';
+import { SchemeBuilderService } from './services/scheme-builder';
 
 @Module({
   imports: [
@@ -16,6 +17,6 @@ import { ProjectEntity } from './database/entities/project.entity';
     }),
   ],
   controllers: [RepositoryController],
-  providers: [],
+  providers: [SchemeBuilderService],
 })
 export class AppModule {}

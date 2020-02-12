@@ -7,6 +7,8 @@ import * as path from 'path';
 import * as Rimraf from 'rimraf';
 import { validate } from 'class-validator';
 import { Config } from 'src/models/config';
+import { Scheme } from 'src/models/scheme';
+import { SchemeBuilderService } from 'src/services/scheme-builder';
 
 const fsExists = promisify(fs.exists);
 const tmpDir = promisify(tmp.dir);
@@ -15,6 +17,8 @@ const readFile = promisify(fs.readFile);
 
 @Controller('/repository')
 export class RepositoryController {
+  constructor(private readonly SchemeBuilder: SchemeBuilderService) {}
+
   @Post()
   async runRepository(@Body() body: { url: string; branch?: string }) {
     const dir = await tmpDir();
@@ -37,14 +41,30 @@ export class RepositoryController {
         return { success: false, message: 'config.json does not exist' };
       }
 
+      const schemePath = path.join(dir, 'scheme.json');
+
+      const schemeExists = await fsExists(schemePath);
+
+      if(!schemeExists) {
+        return { success: false, message: 'scheme.json does not exist' };
+      }
+
       const configFile = await readFile(configPath, 'utf8');
+      const schemeFile = await readFile(schemePath, 'utf8');
 
       let config: Config;
+      let scheme: Scheme;
 
       try {
         config = JSON.parse(configFile);
       } catch (e) {
-        return { succes: false, message: 'config.json file is invalid JSON' };
+        return { success: false, message: 'config.json file is invalid JSON' };
+      }
+
+      try{
+        scheme = JSON.parse(schemeFile);
+      } catch (e) {
+        return { success: false, messags: 'schema.json file is invalid JSON' };
       }
 
       validate(config).then(errors => {
@@ -53,12 +73,14 @@ export class RepositoryController {
         }
       });
 
+      this.SchemeBuilder.generateScheme(scheme);
+
       return { success: true, config };
     } catch (e) {
       console.log(e);
       return {
         success: false,
-        message: 'something went wrong while cloing your repo',
+        message: 'something went wrong while cloning your repo',
       };
     } finally {
       await rimraf(dir);
