@@ -1,4 +1,4 @@
 export class Scheme {
-    name: string;
-    columns: object;
+  name: string;
+  columns: object;
 }

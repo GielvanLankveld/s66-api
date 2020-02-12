@@ -9,7 +9,9 @@ import { validate } from 'class-validator';
 import { Config } from 'src/models/config';
 import { Scheme } from 'src/models/scheme';
 import { SchemeBuilderService } from 'src/services/scheme-builder';
-
+import { plainToClass } from 'class-transformer';
+import { createConnection, Connection, getConnectionManager } from 'typeorm';
+import { EntitySchemaOptions } from 'typeorm/entity-schema/EntitySchemaOptions';
 const fsExists = promisify(fs.exists);
 const tmpDir = promisify(tmp.dir);
 const rimraf = promisify(Rimraf);
@@ -17,7 +19,10 @@ const readFile = promisify(fs.readFile);
 
 @Controller('/repository')
 export class RepositoryController {
-  constructor(private readonly SchemeBuilder: SchemeBuilderService) {}
+  constructor(
+    private readonly schemeBuilder: SchemeBuilderService,
+    private readonly connection: Connection,
+  ) {}
 
   @Post()
   async runRepository(@Body() body: { url: string; branch?: string }) {
@@ -45,7 +50,7 @@ export class RepositoryController {
 
       const schemeExists = await fsExists(schemePath);
 
-      if(!schemeExists) {
+      if (!schemeExists) {
         return { success: false, message: 'scheme.json does not exist' };
       }
 
@@ -53,7 +58,7 @@ export class RepositoryController {
       const schemeFile = await readFile(schemePath, 'utf8');
 
       let config: Config;
-      let scheme: Scheme;
+      let scheme: EntitySchemaOptions<any>;
 
       try {
         config = JSON.parse(configFile);
@@ -61,7 +66,7 @@ export class RepositoryController {
         return { success: false, message: 'config.json file is invalid JSON' };
       }
 
-      try{
+      try {
         scheme = JSON.parse(schemeFile);
       } catch (e) {
         return { success: false, messags: 'schema.json file is invalid JSON' };
@@ -73,7 +78,39 @@ export class RepositoryController {
         }
       });
 
-      this.SchemeBuilder.generateScheme(scheme);
+      const entitySchema = this.schemeBuilder.generateScheme(scheme);
+
+      const databasename = 'dbname';
+
+      this.connection.query(
+        `CREATE DATABASE IF NOT EXISTS \`${databasename}\``,
+      );
+
+      const dataConnection = await createConnection({
+        name: databasename,
+        type: 'mysql',
+        host: process.env.DB_HOST,
+        port: parseInt(process.env.DB_PORT, 10),
+        username: process.env.DB_USERNAME,
+        password: process.env.DB_PASSWORD,
+        database: databasename,
+        entities: [entitySchema],
+        synchronize: false,
+      });
+
+      const databaseLog = await dataConnection.driver
+        .createSchemaBuilder()
+        .log();
+
+      const queries = databaseLog.upQueries.map(q => q.query);
+
+      await dataConnection.transaction(async entityManager => {
+        for (const query of queries) {
+          await entityManager.query(query);
+        }
+      });
+
+      await dataConnection.close();
 
       return { success: true, config };
     } catch (e) {
