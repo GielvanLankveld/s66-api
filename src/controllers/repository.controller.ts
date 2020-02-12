@@ -1,11 +1,12 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body } from '@nestjs/common';
 import * as simplegit from 'simple-git/promise';
 import { promisify } from 'util';
 import * as tmp from 'tmp';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as Rimraf from 'rimraf';
-import { validate, validateOrReject, Contains, IsInt, Length, IsEmail, IsFQDN, IsDate, Min, Max } from "class-validator";
+import { validate } from 'class-validator';
+import { Config } from 'src/models/config';
 
 const fsExists = promisify(fs.exists);
 const tmpDir = promisify(tmp.dir);
@@ -38,7 +39,7 @@ export class RepositoryController {
 
       const configFile = await readFile(configPath, 'utf8');
 
-      let config: any;
+      let config: Config;
 
       try {
         config = JSON.parse(configFile);
@@ -48,9 +49,9 @@ export class RepositoryController {
 
       validate(config).then(errors => {
         if (errors.length > 0) {
-          return { succes: false, message: errors }
+          return { succes: false, message: errors };
         }
-      })
+      });
 
       return { success: true, config };
     } catch (e) {
