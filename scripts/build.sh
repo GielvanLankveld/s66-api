@@ -1,6 +1,7 @@
 #!/bin/bash
-
-eval $(minikube docker-env -p s66)
+if type minikube 2> /dev/null; then
+  eval $(minikube docker-env -p s66)
+fi
 
 # Get root path
 ROOT_PATH=$( cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P )/..
@@ -12,7 +13,7 @@ NEW_IMAGE_NAME=$docker_name:temp
 
 echo "Building image..."
 
-docker build $ROOT_PATH -t $NEW_IMAGE_NAME &> /dev/null
+docker build $ROOT_PATH -t $NEW_IMAGE_NAME
 
 LATEST_DOCKER_ID=$(docker images --no-trunc -q ${LATEST_IMAGE_NAME})
 NEW_DOCKER_ID=$(docker inspect --format {{.Id}} ${NEW_IMAGE_NAME})
@@ -27,4 +28,6 @@ else
     echo "Nothing changed, tagged: " ${NEW_DOCKER_ID:7:16}
 fi
 
-eval $(minikube docker-env -p s66 -u)
+if type minikube 2> /dev/null; then
+  eval $(minikube docker-env -p s66 -u)
+fi

@@ -1,6 +1,8 @@
 #!/bin/bash
 
-eval $(minikube docker-env -p s66)
+if type minikube 2> /dev/null; then
+  eval $(minikube docker-env -p s66)
+fi
 
 # Get root path
 ROOT_PATH=$( cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P )/..
@@ -14,4 +16,6 @@ echo "Depling image api:${LATEST_DOCKER_ID:7:16}"
 
 kubectl set image deployment/api api=api:${LATEST_DOCKER_ID:7:16}
 
-eval $(minikube docker-env -p s66 -u)
+if type minikube 2> /dev/null; then
+  eval $(minikube docker-env -p s66 -u)
+fi
