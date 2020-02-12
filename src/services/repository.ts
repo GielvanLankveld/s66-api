@@ -5,14 +5,18 @@ import { Repository } from 'typeorm';
 import { BranchEntity } from 'src/database/entities/branch.entity';
 import * as simplegit from 'simple-git/promise';
 import { promisify } from 'util';
+import * as fs from 'fs';
 import * as tmp from 'tmp';
+import * as path from 'path';
 import * as Rimraf from 'rimraf';
 import { AddRepositoryDto } from 'src/dtos/addRepository.dto';
 import { BranchStatus } from 'src/database/enums/branchStatus';
 import { BRANCH_QUEUE } from 'src/constants';
 import { Queue } from 'bull';
 import { BranchJob } from 'src/jobs/branch.job';
+import { STATUS_CODES } from 'http';
 
+const fsExists = promisify(fs.exists);
 const tmpDir = promisify(tmp.dir);
 const rimraf = promisify(Rimraf);
 
@@ -21,15 +25,15 @@ export interface RepoBranch {
 }
 
 export class Repo {
-  private dir: string | null = null;
+  public dir: string | null = null;
   private git = simplegit();
-  constructor(public readonly url: string) {}
+  constructor(public readonly url: string) { }
 
-  async clone() {
+  async clone(branchName?: string) {
     try {
       this.dir = await tmpDir();
 
-      await this.git.clone(this.url, this.dir);
+      await this.git.clone(this.url, this.dir, !!branchName ? ['-b', branchName] : []);
 
       await this.git.cwd(this.dir);
     } catch (e) {
@@ -74,7 +78,30 @@ export class RepositoryService {
         relations: ['repository'],
       });
 
+      branch.status = BranchStatus.VALIDATING;
+      await branch.save();
+
+      const branchRepo = new Repo(branch.repository.url);
+
+      await branchRepo.clone(branch.name);
+      //Validate branch
+      //Files uitlezen + valideren
+
+      const configPath = path.join(branchRepo.dir, 'config.json');
+
+      const configExists = await fsExists(configPath);
+
+      if (!configExists) {
+        branch.error = 'scheme.json does not exist';
+        branch.status = BranchStatus.FAILED;
+        await branch.save();
+        return done('scheme.json does not exist');
+      }
+
       console.log(branch);
+
+      branch.status = BranchStatus.SUCCESS;
+      await branch.save();
 
       setTimeout(() => {
         done();

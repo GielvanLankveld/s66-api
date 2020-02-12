@@ -19,6 +19,9 @@ export class BranchEntity extends BaseEntity {
   @Column({ length: 1000 })
   name: string;
 
+  @Column({ type: 'text' })
+  error: string;
+
   @Column({ type: 'enum', enum: BranchStatus })
   status: BranchStatus;
 
