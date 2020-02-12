@@ -95,7 +95,7 @@ export class RepositoryService {
         branch.error = 'scheme.json does not exist';
         branch.status = BranchStatus.FAILED;
         await branch.save();
-        return done('scheme.json does not exist');
+        return done(Error('scheme.json does not exist'));
       }
 
       console.log(branch);
@@ -131,6 +131,7 @@ export class RepositoryService {
       branch.repositoryId = repository.id;
       branch.status = BranchStatus.PENDING;
       branch.commits = commitCount;
+      branch.error = '';
 
       await this.branchRepository.save(branch);
 

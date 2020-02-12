@@ -13,6 +13,7 @@ import { RepositoryService } from './services/repository';
 import * as Queue from 'bull';
 import { BRANCH_QUEUE } from './constants';
 import { BranchJob } from './jobs/branch.job';
+import { AddBranchError1581548495214 } from './database/migrations/1581548495214-AddBranchError';
 
 const branchQueue = new Queue<BranchJob>('branch', 'redis://redis:6379');
 
@@ -33,7 +34,7 @@ const ENTITIES = [
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
       entities: ENTITIES,
-      migrations: [InitialDatabase1581534216930],
+      migrations: [InitialDatabase1581534216930, AddBranchError1581548495214],
     }),
     TypeOrmModule.forFeature(ENTITIES),
   ],
