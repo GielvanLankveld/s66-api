@@ -12,6 +12,12 @@ spec:
     resources:
       requests:
         storage: 1Gi
+  init:
+    scriptSource:
+      configMap:
+        name: mysql-config
+  databaseSecret:
+    secretName: mysql-auth
   podTemplate:
     metadata:
       labels:
@@ -19,4 +25,4 @@ spec:
     spec:
       args:
         - --default-authentication-plugin=mysql_native_password
-  terminationPolicy: DoNotTerminate
+  terminationPolicy: Delete
