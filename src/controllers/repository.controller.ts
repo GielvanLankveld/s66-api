@@ -5,6 +5,7 @@ import * as tmp from 'tmp';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as Rimraf from 'rimraf';
+import { validate, validateOrReject, Contains, IsInt, Length, IsEmail, IsFQDN, IsDate, Min, Max } from "class-validator";
 
 const fsExists = promisify(fs.exists);
 const tmpDir = promisify(tmp.dir);
@@ -46,6 +47,12 @@ export class RepositoryController {
         await rimraf(dir);
         return { succes: false, message: 'config.json file is invalid JSON' };
       }
+
+      validate(config).then(errors => {
+        if (errors.length > 0) {
+          return { succes: false, message: errors }
+        }
+      })
 
       return { success: true, config };
     } catch (e) {
