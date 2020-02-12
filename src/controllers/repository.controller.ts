@@ -7,8 +7,10 @@ import * as path from 'path';
 import * as Rimraf from 'rimraf';
 import { validate } from 'class-validator';
 import { Config } from 'src/models/config';
+import { DataLoaderConfig } from 'src/models/dataLoader'
 import { SchemeBuilderService } from 'src/services/scheme-builder';
 import { EntitySchemaOptions } from 'typeorm/entity-schema/EntitySchemaOptions';
+import { ValidationService } from 'src/services/validationService';
 const fsExists = promisify(fs.exists);
 const tmpDir = promisify(tmp.dir);
 const rimraf = promisify(Rimraf);
@@ -16,7 +18,7 @@ const readFile = promisify(fs.readFile);
 
 @Controller('/repository')
 export class RepositoryController {
-  constructor(private readonly schemeBuilder: SchemeBuilderService) {}
+  constructor(private readonly schemeBuilder: SchemeBuilderService, private readonly validationService: ValidationService) { }
 
   @Post()
   async runRepository(@Body() body: { url: string; branch?: string }) {
@@ -51,35 +53,66 @@ export class RepositoryController {
       const configFile = await readFile(configPath, 'utf8');
       const schemeFile = await readFile(schemePath, 'utf8');
 
-      let config: Config;
+      let config: Config
       let scheme: EntitySchemaOptions<any>;
 
       try {
-        config = JSON.parse(configFile);
+        config = await this.validationService.validate(Config, configFile)
       } catch (e) {
-        return { success: false, message: 'config.json file is invalid JSON' };
+        return { success: false, errors: e }
       }
 
-      try {
-        scheme = JSON.parse(schemeFile);
-      } catch (e) {
-        return { success: false, message: 'schema.json file is invalid JSON' };
+      if(config.dataLoaders) {
+        //MULTIPLE DATALOADERS
+      } else {
+        //SINGLE DATALOADER
       }
 
-      validate(config).then(errors => {
-        if (errors.length > 0) {
-          return { success: false, message: errors };
+      let errors: string[]
+      let dataLoaderConfigs: DataLoaderConfig[] = []
+
+      config.dataLoaders.forEach(async dataLoader => {
+        console.log('looping over dataloader: ', dataLoader)
+
+        const dataLoaderPath = path.join(dir, dataLoader);
+        const dataLoaderConfigPath = path.join(
+          dataLoaderPath,
+          'dataloader.config.json',
+        );
+
+        let dataLoaderConfigFile;
+
+        try {
+          dataLoaderConfigFile = await readFile(dataLoaderConfigPath, 'utf8');
+        } catch (error) {
+          errors.push(`Failed to get the dataloader config.json file for ${dataLoader}`);
+        }
+
+        console.log('read dataloaderconfig file')
+
+        if (dataLoaderConfigFile) {
+          let dataLoaderConfig: DataLoaderConfig
+          try {
+            dataLoaderConfig = await this.validationService.validate(DataLoaderConfig, dataLoaderConfigFile);
+            dataLoaderConfigs.push(dataLoaderConfig);
+          } catch (e) {
+            errors = [...errors, ...e]
+          }
+
+          console.log('validated dataloaderconfig file')
+
+          //TODO Uitlezen van dataloader
         }
       });
 
-      this.schemeBuilder.generateScheme(scheme, 'dbName');
+      //this.schemeBuilder.generateScheme(scheme, 'dbName');
 
-      return { success: true, config };
+      return { success: true, config, dataLoaderConfigs };
     } catch (e) {
       console.log(e);
       return {
         success: false,
-        message: 'something went wrong while cloning your repo',
+        message: e.message,
       };
     } finally {
       await rimraf(dir);

@@ -1,9 +1,13 @@
-import {validate, validateOrReject, Contains, IsInt, Length, IsEmail, IsFQDN, IsDate, Min, Max} from "class-validator";
+import { IsOptional, IsArray, IsString, IsDefined, IsNotEmpty, ArrayNotEmpty, ArrayMinSize } from "class-validator";
 
 export class Config {
-    @Length(10, 20)
-    title: string;
+    @IsString()
+    @IsDefined()
+    database: string
 
-    @Contains("hello")
-    text: string;
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    @ArrayMinSize(1)
+    dataLoaders: string[]
 }

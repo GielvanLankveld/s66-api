@@ -3,6 +3,7 @@ import { RepositoryController } from './controllers/repository.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProjectEntity } from './database/entities/project.entity';
 import { SchemeBuilderService } from './services/scheme-builder';
+import { ValidationService } from './services/validationService';
 
 @Module({
   imports: [
@@ -17,6 +18,6 @@ import { SchemeBuilderService } from './services/scheme-builder';
     }),
   ],
   controllers: [RepositoryController],
-  providers: [SchemeBuilderService],
+  providers: [SchemeBuilderService, ValidationService],
 })
 export class AppModule {}
