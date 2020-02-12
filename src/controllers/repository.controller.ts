@@ -17,6 +17,7 @@ const readFile = promisify(fs.readFile);
 export class RepositoryController {
   @Post()
   async runRepository(@Body() body: { url: string; branch?: string }) {
+    const errors = [];
     const dir = await tmpDir();
     const git = simplegit();
 
@@ -39,7 +40,7 @@ export class RepositoryController {
 
       const configFile = await readFile(configPath, 'utf8');
 
-      let config: Config;
+      let config: any;
 
       try {
         config = JSON.parse(configFile);
@@ -47,13 +48,50 @@ export class RepositoryController {
         return { succes: false, message: 'config.json file is invalid JSON' };
       }
 
-      validate(config).then(errors => {
-        if (errors.length > 0) {
-          return { succes: false, message: errors };
+      if (config.dataloaders.length < 1) {
+        return {
+          succes: false,
+          message: 'no dataloaders were specified in config.json',
+        };
+      }
+
+      config.dataloaders.forEach(async dataloader => {
+        const dataLoaderPath = path.join(dir, dataloader);
+        const dataLoaderConfigPath = path.join(
+          dataLoaderPath,
+          'dataloader.config.json',
+        );
+
+        let dataLoaderConfigFile;
+        try {
+          dataLoaderConfigFile = await readFile(dataLoaderConfigPath, 'utf8');
+        } catch (error) {
+          errors.push(
+            `Failed to get the dataloader config.json file for ${dataloader}`,
+          );
+        }
+
+        if (dataLoaderConfigFile) {
+          let config;
+          try {
+            config = JSON.parse(dataLoaderConfigFile);
+          } catch (error) {
+            errors.push(
+              `Failed to parse te dataloader config.json file for ${dataloader}`,
+            );
+          }
+
+          // TODO Validate the dataloader config file
         }
       });
+      return { success: true, config, errors };
 
-      return { success: true, config };
+      // Foreach elke dataloader.config.json
+      // validate(config).then(errors => {
+      //   if (errors.length > 0) {
+      //     return { succes: false, message: errors };
+      //   }
+      // });
     } catch (e) {
       console.log(e);
       return {
