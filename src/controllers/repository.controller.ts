@@ -12,9 +12,9 @@ const tmpDir = promisify(tmp.dir);
 const rimraf = promisify(Rimraf);
 const readFile = promisify(fs.readFile);
 
-@Controller()
+@Controller('/repository')
 export class RepositoryController {
-  @Post('/repository')
+  @Post()
   async runRepository(@Body() body: { url: string; branch?: string }) {
     const dir = await tmpDir();
     const git = simplegit();
@@ -33,7 +33,6 @@ export class RepositoryController {
       const configExists = await fsExists(configPath);
 
       if (!configExists) {
-        await rimraf(dir);
         return { success: false, message: 'config.json does not exist' };
       }
 
@@ -44,7 +43,6 @@ export class RepositoryController {
       try {
         config = JSON.parse(configFile);
       } catch (e) {
-        await rimraf(dir);
         return { succes: false, message: 'config.json file is invalid JSON' };
       }
 

@@ -1,0 +1,8 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: mysql-config
+data:
+  data.sql: |-
+    DROP DATABASE IF EXISTS s66;
+    CREATE DATABASE s66;
