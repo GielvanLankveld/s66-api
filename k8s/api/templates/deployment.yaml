@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: api:latest
+          image: api:{{ .Values.image.tag }}
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000

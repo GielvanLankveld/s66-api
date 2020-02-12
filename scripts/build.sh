@@ -1,7 +1,4 @@
 #!/bin/bash
-if type minikube 2> /dev/null; then
-  eval $(minikube docker-env -p s66)
-fi
 
 # Get root path
 ROOT_PATH=$( cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P )/..
@@ -26,8 +23,4 @@ else
     docker tag $NEW_IMAGE_NAME $docker_name:${NEW_DOCKER_ID:7:16}
     docker tag $NEW_IMAGE_NAME $docker_name:latest
     echo "Nothing changed, tagged: " ${NEW_DOCKER_ID:7:16}
-fi
-
-if type minikube 2> /dev/null; then
-  eval $(minikube docker-env -p s66 -u)
 fi
