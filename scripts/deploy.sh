@@ -7,6 +7,9 @@ fi
 # Get root path
 ROOT_PATH=$( cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P )/..
 
+# Build libraries and create mount string
+source ${ROOT_PATH}/scripts/build.sh
+
 docker_name="api"
 LATEST_IMAGE_NAME=$docker_name:latest
 LATEST_DOCKER_ID=$(docker images --no-trunc -q ${LATEST_IMAGE_NAME})

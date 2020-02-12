@@ -1,2 +1,4 @@
 mysql:
   storageClassName: standard
+redis:
+  storageClassName: standard

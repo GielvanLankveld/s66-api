@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { Connection } from 'typeorm';
 
 // Make sure unhandled promise rejections crash the application
 process.on('unhandledRejection', err => {
@@ -9,6 +10,16 @@ process.on('unhandledRejection', err => {
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  const connection = await app.resolve(Connection);
+
+  const pendingMigrations = await connection.showMigrations();
+
+  if (pendingMigrations) {
+    console.log('running migrations...');
+    await connection.runMigrations({ transaction: 'each' });
+  }
+
   await app.listen(3000);
 
   process.on('SIGTERM', async () => {
