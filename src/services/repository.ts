@@ -16,6 +16,7 @@ import { Queue } from 'bull';
 import { BranchJob } from 'src/jobs/branch.job';
 import { ApiException } from 'src/exceptions/api.exception';
 import { RefreshRepositoryDto } from 'src/dtos/refreshRepository.dto';
+import { SchemeBuilderService } from './scheme-builder';
 
 const fsExists = promisify(fs.exists);
 const tmpDir = promisify(tmp.dir);
@@ -28,7 +29,7 @@ export interface RepoBranch {
 export class Repo {
   public dir: string | null = null;
   private git = simplegit();
-  constructor(public readonly url: string) {}
+  constructor(public readonly url: string) { }
 
   async clone(branchName?: string) {
     try {
@@ -85,6 +86,7 @@ export class RepositoryService {
     private readonly branchRepository: Repository<BranchEntity>,
     @Inject(BRANCH_QUEUE)
     private readonly branchQueue: Queue<BranchJob>,
+    private readonly schemeBuilder: SchemeBuilderService
   ) {
     branchQueue.process(async ({ data: { branchId, repositoryId } }, done) => {
       const branch = await this.branchRepository.findOne({
@@ -116,6 +118,16 @@ export class RepositoryService {
         }
 
         // TODO VALIDATION ETC...
+
+        const schemePath = path.join(branchRepo.dir, 'scheme.json');
+
+        const schemeExists = await fsExists(schemePath);
+
+        if (!schemeExists) {
+          throw 'scheme.json does not exist';
+        }
+
+        schemeBuilder.validateScheme(schemePath);
 
         branch.status = BranchStatus.SUCCESS;
         await branch.save();
