@@ -1,3 +1,5 @@
+import { Config } from 'src/models/config';
+import { ValidationService } from 'src/services/validation';
 import { Injectable, Inject, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { RepositoryEntity } from 'src/database/entities/repository.entity';
@@ -16,6 +18,8 @@ import { Queue } from 'bull';
 import { BranchJob } from 'src/jobs/branch.job';
 import { ApiException } from 'src/exceptions/api.exception';
 import { RefreshRepositoryDto } from 'src/dtos/refreshRepository.dto';
+import { Scheme } from 'src/models/scheme';
+const readFile = promisify(fs.readFile);
 
 const fsExists = promisify(fs.exists);
 const tmpDir = promisify(tmp.dir);
@@ -85,6 +89,7 @@ export class RepositoryService {
     private readonly branchRepository: Repository<BranchEntity>,
     @Inject(BRANCH_QUEUE)
     private readonly branchQueue: Queue<BranchJob>,
+    private readonly validationService: ValidationService,
   ) {
     branchQueue.process(async ({ data: { branchId, repositoryId } }, done) => {
       const branch = await this.branchRepository.findOne({
@@ -107,15 +112,51 @@ export class RepositoryService {
         //Validate branch
         //Files uitlezen + valideren
 
-        const configPath = path.join(branchRepo.dir, 'config.json');
-
-        const configExists = await fsExists(configPath);
-
-        if (!configExists) {
-          throw 'config.json does not exist';
+        // config.json file validation
+        try {
+          this.validateFile(branchRepo.dir, 'config.json', Config);
+        } catch (e) {
+          console.log('Catch in config.json validation');
+          throw e.join('\n');
         }
 
-        // TODO VALIDATION ETC...
+        try {
+          this.validateFile(branchRepo.dir, 'config.json', Scheme);
+        } catch (e) {
+          console.log('Catch in scheme.json validation');
+          throw e.join('\n');
+        }
+
+        // const configPath = path.join(branchRepo.dir, 'config.json');
+
+        // const configExists = await fsExists(configPath);
+
+        // if (!configExists) throw 'config.json does not exist';
+
+        // const configFile = await readFile(configPath, 'utf8');
+
+        // // validate the config file
+        // let config: Config;
+        // try {
+        //   config = await this.validationService.validate(Config, configFile);
+        // } catch (e) {
+        //   throw e.join('\n');
+        // }
+
+        // Scheme.json validation
+        // const schemePath = path.join(branchRepo.dir, 'scheme.json');
+        // const schemeExists = await fsExists(schemePath);
+
+        // if (!schemeExists) throw 'scheme.json does not exist';
+
+        // const schemeFile = await readFile(schemePath, 'utf8');
+
+        // let scheme: Scheme;
+        // try {
+        //   scheme = await this.validationService.validate(Scheme, schemeFile);
+        // } catch (e) {
+        //   throw e.join('\n');
+        // }
 
         branch.status = BranchStatus.SUCCESS;
         await branch.save();
@@ -124,12 +165,30 @@ export class RepositoryService {
         branch.error = message;
         branch.status = BranchStatus.FAILED;
         await branch.save();
-
         done(Error(message));
       } finally {
         await branchRepo.delete();
       }
     });
+  }
+
+  async validateFile<T = any>(
+    dirPath: string,
+    fileString: string,
+    clazz: { new (): T },
+  ) {
+    const filePath = path.join(dirPath, fileString);
+    const fileExists = await fsExists(filePath);
+    if (!fileExists) throw `${fileString} does not exist`;
+
+    const file = await readFile(filePath, 'utf8');
+
+    let obj: T;
+    try {
+      obj = await this.validationService.validate(clazz, file);
+    } catch (e) {
+      throw e.join('\n');
+    }
   }
 
   async create(addRepositoryDto: AddRepositoryDto): Promise<RepositoryEntity> {

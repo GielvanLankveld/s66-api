@@ -1,3 +1,4 @@
+import { ValidationService } from 'src/services/validation';
 import { Module, OnModuleInit } from '@nestjs/common';
 import { RepositoryController } from './controllers/repository.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -53,6 +54,7 @@ const ENTITIES = [
     },
     SchemeBuilderService,
     RepositoryService,
+    ValidationService,
     { provide: BRANCH_QUEUE, useValue: branchQueue },
   ],
 })
