@@ -9,6 +9,7 @@ import { EntitySchemaOptions } from 'typeorm/entity-schema/EntitySchemaOptions';
 import { RepositoryEntity } from 'src/database/entities/repository.entity';
 import { AddRepositoryDto } from 'src/dtos/addRepository.dto';
 import { RepositoryService } from 'src/services/repository';
+import { RefreshRepositoryDto } from 'src/dtos/refreshRepository.dto';
 const fsExists = promisify(fs.exists);
 const readFile = promisify(fs.readFile);
 
@@ -20,6 +21,12 @@ export class RepositoryController {
   async addRepository(@Body() body: AddRepositoryDto) {
     const repository = await this.repositoryService.create(body);
     return { success: true, data: repository };
+  }
+
+  @Post('/refresh')
+  async refreshRepository(@Body() body: RefreshRepositoryDto) {
+    await this.repositoryService.refresh(body);
+    return { success: true, message: 'refreshed' };
   }
 
   @Post('/webhook')

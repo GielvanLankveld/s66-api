@@ -15,6 +15,7 @@ import { BRANCH_QUEUE } from 'src/constants';
 import { Queue } from 'bull';
 import { BranchJob } from 'src/jobs/branch.job';
 import { ApiException } from 'src/exceptions/api.exception';
+import { RefreshRepositoryDto } from 'src/dtos/refreshRepository.dto';
 
 const fsExists = promisify(fs.exists);
 const tmpDir = promisify(tmp.dir);
@@ -174,36 +175,59 @@ export class RepositoryService {
     return repository;
   }
 
+  async refresh(body: RefreshRepositoryDto) {
+    const repository = await this.repositoryRepository.findOne({
+      id: body.repositoryId,
+    });
+
+    if (!repository) {
+      throw new ApiException(HttpStatus.CONFLICT, 'repository not found');
+    }
+
+    const repo = new Repo(repository.url);
+
+    await repo.clone();
+    const branchNames = await repo.branches();
+
+    for (const branchName of branchNames) {
+      await this.checkAndCreateBranch(repository.id, branchName);
+    }
+  }
+
   async webhook(repositoryUrl: string, branchName: string) {
     const repositories = await this.repositoryRepository.find({
       url: repositoryUrl,
     });
 
     for (const repository of repositories) {
-      const branch = await this.branchRepository.findOne({
-        name: branchName,
-        repositoryId: repository.id,
+      await this.checkAndCreateBranch(repository.id, branchName);
+    }
+  }
+
+  private async checkAndCreateBranch(repositoryId: number, branchName: string) {
+    const branch = await this.branchRepository.findOne({
+      name: branchName,
+      repositoryId,
+    });
+
+    if (branch) {
+      await this.branchQueue.add({
+        branchId: branch.id,
+        repositoryId,
       });
+    } else {
+      const branch = new BranchEntity();
+      branch.name = branchName;
+      branch.repositoryId = repositoryId;
+      branch.status = BranchStatus.PENDING;
+      branch.error = '';
 
-      if (branch) {
-        await this.branchQueue.add({
-          branchId: branch.id,
-          repositoryId: repository.id,
-        });
-      } else {
-        const branch = new BranchEntity();
-        branch.name = branchName;
-        branch.repositoryId = repository.id;
-        branch.status = BranchStatus.PENDING;
-        branch.error = '';
+      await this.branchRepository.save(branch);
 
-        await this.branchRepository.save(branch);
-
-        await this.branchQueue.add({
-          branchId: branch.id,
-          repositoryId: repository.id,
-        });
-      }
+      await this.branchQueue.add({
+        branchId: branch.id,
+        repositoryId,
+      });
     }
   }
 }
