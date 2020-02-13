@@ -14,7 +14,6 @@ import { BranchStatus } from 'src/database/enums/branchStatus';
 import { BRANCH_QUEUE } from 'src/constants';
 import { Queue } from 'bull';
 import { BranchJob } from 'src/jobs/branch.job';
-import { STATUS_CODES } from 'http';
 import { ApiException } from 'src/exceptions/api.exception';
 
 const fsExists = promisify(fs.exists);
