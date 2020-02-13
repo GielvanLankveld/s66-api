@@ -19,6 +19,9 @@ import { BranchJob } from 'src/jobs/branch.job';
 import { ApiException } from 'src/exceptions/api.exception';
 import { RefreshRepositoryDto } from 'src/dtos/refreshRepository.dto';
 import { Scheme } from 'src/models/scheme';
+import { DataloaderConfig } from 'src/models/dataloader.config';
+import { DataLoaderEntity } from 'src/database/entities/dataloader.entity';
+import { DataLoaderStatus } from 'src/database/enums/dataloaderStatus';
 const readFile = promisify(fs.readFile);
 
 const fsExists = promisify(fs.exists);
@@ -87,6 +90,8 @@ export class RepositoryService {
     private readonly repositoryRepository: Repository<RepositoryEntity>,
     @InjectRepository(BranchEntity)
     private readonly branchRepository: Repository<BranchEntity>,
+    @InjectRepository(DataLoaderEntity)
+    private readonly dataloaderRepository: Repository<DataLoaderEntity>,
     @Inject(BRANCH_QUEUE)
     private readonly branchQueue: Queue<BranchJob>,
     private readonly validationService: ValidationService,
@@ -113,18 +118,52 @@ export class RepositoryService {
         //Files uitlezen + valideren
 
         // config.json file validation
+        let config: Config;
         try {
-          this.validateFile(branchRepo.dir, 'config.json', Config);
+          config = await this.validateFile(
+            branchRepo.dir,
+            'config.json',
+            Config,
+          );
         } catch (e) {
-          console.log('Catch in config.json validation');
-          throw e.join('\n');
+          throw e;
         }
 
         try {
-          this.validateFile(branchRepo.dir, 'config.json', Scheme);
+          await this.validateFile(branchRepo.dir, 'scheme.json', Scheme);
         } catch (e) {
-          console.log('Catch in scheme.json validation');
-          throw e.join('\n');
+          throw e;
+        }
+
+        for (const dataloaderName of config.dataLoaders) {
+          const dataLoaderPath = path.join(branchRepo.dir, dataloaderName);
+
+          let dataloader = await this.dataloaderRepository.findOne({
+            branchId,
+            name: dataloaderName,
+          });
+
+          if (!dataloader) {
+            dataloader = new DataLoaderEntity();
+            dataloader.name = dataloaderName;
+            dataloader.branchId = branchId;
+            dataloader.projectId = branch.repository.projectId;
+          }
+
+          try {
+            await this.validateFile(
+              dataLoaderPath,
+              'dataloader.config.json',
+              DataloaderConfig,
+            );
+
+            dataloader.status = DataLoaderStatus.SUCCESS;
+          } catch (e) {
+            dataloader.status = DataLoaderStatus.FAILED;
+            throw e;
+          } finally {
+            await this.dataloaderRepository.save(dataloader);
+          }
         }
 
         // const configPath = path.join(branchRepo.dir, 'config.json');
@@ -176,7 +215,7 @@ export class RepositoryService {
     dirPath: string,
     fileString: string,
     clazz: { new (): T },
-  ) {
+  ): Promise<T> {
     const filePath = path.join(dirPath, fileString);
     const fileExists = await fsExists(filePath);
     if (!fileExists) throw `${fileString} does not exist`;
@@ -189,6 +228,8 @@ export class RepositoryService {
     } catch (e) {
       throw e.join('\n');
     }
+
+    return obj;
   }
 
   async create(addRepositoryDto: AddRepositoryDto): Promise<RepositoryEntity> {

@@ -21,6 +21,7 @@ import { AllExceptionsFilter } from './filters/all.exception';
 import { JobController } from './controllers/job.controller';
 import { JobService } from './services/job';
 import { RunJob } from './jobs/run.job';
+import { DataLoaderChange1581588323846 } from './database/migrations/1581588323846-DataLoaderChange';
 
 const branchQueue = new Queue<BranchJob>('branch', 'redis://redis:6379');
 const runQueue = new Queue<RunJob>('job', 'redis://redis:6379');
@@ -46,6 +47,7 @@ const ENTITIES = [
         InitialDatabase1581534216930,
         AddBranchError1581548495214,
         CommitsNullable1581549891065,
+        DataLoaderChange1581588323846,
       ],
     }),
     TypeOrmModule.forFeature(ENTITIES),

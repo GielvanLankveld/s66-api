@@ -10,6 +10,7 @@ import {
 import { JobEntity } from './job.entity';
 import { BranchEntity } from './branch.entity';
 import { ProjectEntity } from './project.entity';
+import { DataLoaderStatus } from '../enums/dataloaderStatus';
 
 @Entity('dataloader')
 export class DataLoaderEntity extends BaseEntity {
@@ -18,6 +19,9 @@ export class DataLoaderEntity extends BaseEntity {
 
   @Column()
   name: string;
+
+  @Column({ type: 'enum', enum: DataLoaderStatus })
+  status: DataLoaderStatus;
 
   @ManyToOne(
     type => BranchEntity,
