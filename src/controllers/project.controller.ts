@@ -14,7 +14,7 @@ export class ProjectController {
   @Get()
   async projects() {
     const projects = await this.projectRepository.find({
-      relations: ['repositories'],
+      relations: ['repositories', 'dataloaders'],
     });
 
     return { success: true, data: projects };

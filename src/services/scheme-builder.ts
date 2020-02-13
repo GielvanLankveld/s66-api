@@ -37,8 +37,10 @@ export class SchemeBuilderService {
     if (schemas.length <= 0) {
       throw 'no schemas found.';
     }
-    this.connection.query(`DROP DATABASE IF EXISTS \`${databaseName}\``);
-    this.connection.query(`CREATE DATABASE IF NOT EXISTS \`${databaseName}\``);
+    await this.connection.query(`DROP DATABASE IF EXISTS \`${databaseName}\``);
+    await this.connection.query(
+      `CREATE DATABASE IF NOT EXISTS \`${databaseName}\``,
+    );
 
     const dataConnection = await createConnection({
       name: databaseName,

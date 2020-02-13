@@ -239,9 +239,9 @@ export class JobService {
   }
 
   private async appendLogs(jobId: number, logs: string) {
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    await new Promise(resolve => setTimeout(resolve, 1000));
     await this.jobRepository.query(
-      `update job set logs = concat(?,logs) where id = ?`,
+      `update job set logs = concat(logs, ?) where id = ?`,
       [logs, jobId],
     );
   }
@@ -279,7 +279,7 @@ export class JobService {
 
     const interval = setInterval(async () => {
       await this.jobRepository.query(
-        `update job set logs = concat(?,logs) where id = ?`,
+        `update job set logs = concat(logs, ?) where id = ?`,
         [logs, job.id],
       );
       logs = '';
@@ -289,7 +289,7 @@ export class JobService {
       build.on('close', async code => {
         clearInterval(interval);
         await this.jobRepository.query(
-          `update job set logs = concat(?,logs) where id = ?`,
+          `update job set logs = concat(logs, ?) where id = ?`,
           [logs, job.id],
         );
         logs = '';
