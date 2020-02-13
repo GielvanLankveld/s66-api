@@ -39,3 +39,10 @@ spec:
                 secretKeyRef:
                   name: mysql-auth
                   key: password
+          volumeMounts:
+            - name: dockersock
+              mountPath: "/var/run/docker.sock"
+      volumes:
+        - name: dockersock
+          hostPath:
+            path: /var/run/docker.sock

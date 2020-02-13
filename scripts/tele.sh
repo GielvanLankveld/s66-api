@@ -15,5 +15,6 @@ telepresence \
   --swap-deployment api \
   --docker-run \
     -v $ROOT_PATH/src:/usr/src/app/src \
+    -v /var/run/docker.sock:/var/run/docker.sock \
     api:latest \
     npm run start:dev

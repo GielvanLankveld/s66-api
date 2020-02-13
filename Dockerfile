@@ -1,8 +1,7 @@
 FROM node:12-alpine as base
 
 RUN apk update && apk upgrade && \
-    apk add --no-cache bash git openssh
-
+    apk add --no-cache bash git openssh docker
 RUN mkdir -p /usr/src/app
 WORKDIR /usr/src/app
 

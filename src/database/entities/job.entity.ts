@@ -24,7 +24,7 @@ export class JobEntity extends BaseEntity {
   @Column({ type: 'enum', enum: JobStatus })
   status: JobStatus;
 
-  @Column({ type: 'enum', enum: JobStep })
+  @Column({ type: 'enum', enum: JobStep, nullable: true })
   step: JobStep;
 
   @Column({ type: 'text' })

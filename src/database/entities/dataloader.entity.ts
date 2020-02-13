@@ -7,7 +7,6 @@ import {
   JoinColumn,
   OneToMany,
 } from 'typeorm';
-import { RepositoryEntity } from './repository.entity';
 import { JobEntity } from './job.entity';
 import { BranchEntity } from './branch.entity';
 import { ProjectEntity } from './project.entity';
@@ -25,7 +24,7 @@ export class DataLoaderEntity extends BaseEntity {
     branch => branch.dataloaders,
   )
   @JoinColumn({ name: 'branch_id' })
-  branch: RepositoryEntity;
+  branch: BranchEntity;
 
   @Column({ name: 'branch_id' })
   branchId: number;
@@ -35,7 +34,7 @@ export class DataLoaderEntity extends BaseEntity {
     project => project.dataloaders,
   )
   @JoinColumn({ name: 'project_id' })
-  project: RepositoryEntity;
+  project: ProjectEntity;
 
   @Column({ name: 'project_id' })
   projectId: number;
