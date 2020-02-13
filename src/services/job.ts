@@ -11,6 +11,7 @@ import { RunJob } from 'src/jobs/run.job';
 import { Queue } from 'bull';
 import { DataLoaderEntity } from 'src/database/entities/dataloader.entity';
 import path = require('path');
+import { SchemeBuilderService } from './scheme-builder';
 
 @Injectable()
 export class JobService {
@@ -21,6 +22,7 @@ export class JobService {
     private readonly jobRepository: Repository<JobEntity>,
     @Inject(RUN_QUEUE)
     private readonly runQueue: Queue<RunJob>,
+    private readonly schemeBuilder: SchemeBuilderService,
   ) {
     runQueue.process(async ({ data: { jobId } }, done) => {
       const job = await this.jobRepository.findOne({
@@ -52,6 +54,12 @@ export class JobService {
           'error while cloning repo',
         );
       }
+
+      const schemas = await schemeBuilder.validateScheme(
+        path.join(repo.dir, 'scheme.json'),
+      );
+
+      console.log('schemas', schemas);
 
       try {
         await this.build(repo.dir, job);

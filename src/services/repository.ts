@@ -23,6 +23,7 @@ import { DataloaderConfig } from 'src/models/dataloader.config';
 import { DataLoaderEntity } from 'src/database/entities/dataloader.entity';
 import { DataLoaderStatus } from 'src/database/enums/dataloaderStatus';
 const readFile = promisify(fs.readFile);
+import { SchemeBuilderService } from './scheme-builder';
 
 const fsExists = promisify(fs.exists);
 const tmpDir = promisify(tmp.dir);
@@ -95,6 +96,7 @@ export class RepositoryService {
     @Inject(BRANCH_QUEUE)
     private readonly branchQueue: Queue<BranchJob>,
     private readonly validationService: ValidationService,
+    private readonly schemeBuilder: SchemeBuilderService,
   ) {
     branchQueue.process(async ({ data: { branchId, repositoryId } }, done) => {
       const branch = await this.branchRepository.findOne({
@@ -196,6 +198,14 @@ export class RepositoryService {
         // } catch (e) {
         //   throw e.join('\n');
         // }
+
+        const schemePath = path.join(branchRepo.dir, 'scheme.json');
+
+        const schemeExists = await fsExists(schemePath);
+
+        if (!schemeExists) {
+          throw 'scheme.json does not exist';
+        }
 
         branch.status = BranchStatus.SUCCESS;
         await branch.save();
