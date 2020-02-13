@@ -63,7 +63,9 @@ export class JobService {
         const repo = new Repo(repository.url);
 
         try {
+          await this.appendLogs(job.id, 'DOWNLOADING REPOSITORY...\n');
           await repo.clone(branchName);
+          await this.appendLogs(job.id, 'FINISHED DOWNLOADING REPOSITORY...\n');
         } catch (e) {
           throw new ApiException(
             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -189,8 +191,7 @@ export class JobService {
   }
 
   async deletePod(podName: string) {
-    const reponse = await k8sApi.deleteNamespacedPod(podName, 'default');
-    console.log(reponse);
+    await k8sApi.deleteNamespacedPod(podName, 'default');
   }
 
   async run(dataLoaderId: number): Promise<JobEntity> {
@@ -226,6 +227,14 @@ export class JobService {
       .set({ step: jobStep })
       .where('job.id = :jobId', { jobId })
       .execute();
+  }
+
+  private async appendLogs(jobId: number, logs: string) {
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    await this.jobRepository.query(
+      `update job set logs = concat(?,logs) where id = ?`,
+      [logs, jobId],
+    );
   }
 
   private async setJobEndDate(jobId: number, date: Date) {
