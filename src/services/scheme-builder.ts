@@ -28,7 +28,7 @@ export class SchemeBuilderService {
   async generateScheme(
     schemas: EntitySchemaOptions<any>[],
     databaseName: string,
-  ) {
+  ): Promise<{ entites: EntitySchema<any>[]; connection: Connection }> {
     const entitySchemas: EntitySchema[] = [];
     schemas.forEach(schema => {
       entitySchemas.push(new EntitySchema(schema));
@@ -37,7 +37,7 @@ export class SchemeBuilderService {
     if (schemas.length <= 0) {
       throw 'no schemas found.';
     }
-
+    this.connection.query(`DROP DATABASE IF EXISTS \`${databaseName}\``);
     this.connection.query(`CREATE DATABASE IF NOT EXISTS \`${databaseName}\``);
 
     const dataConnection = await createConnection({
@@ -62,6 +62,6 @@ export class SchemeBuilderService {
       }
     });
 
-    await dataConnection.close();
+    return { connection: dataConnection, entites: entitySchemas };
   }
 }

@@ -17,9 +17,13 @@ import { JobStep } from 'src/database/enums/jobStep';
 import * as k8s from '@kubernetes/client-node';
 import * as fs from 'fs';
 import generate from 'nanoid/async/generate';
+import { promisify } from 'util';
+import csvtojson from 'csvtojson';
 
 const kc = new k8s.KubeConfig();
 kc.loadFromCluster();
+
+const readFile = promisify(fs.readFile);
 
 const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
 
@@ -71,7 +75,10 @@ export class JobService {
           path.join(repo.dir, 'scheme.json'),
         );
 
-        await this.schemeBuilder.generateScheme(schemas, 'test');
+        const { connection, entites } = await this.schemeBuilder.generateScheme(
+          schemas,
+          'test',
+        );
 
         const imageName = await this.build(repo.dir, job);
 
@@ -86,7 +93,7 @@ export class JobService {
         console.log('creating pod...');
 
         const podName = `job-${await generate('1234567890abcdef', 10)}`;
-        const pod = await k8sApi.createNamespacedPod('default', {
+        await k8sApi.createNamespacedPod('default', {
           apiVersion: 'v1',
           kind: 'Pod',
           metadata: {
@@ -126,8 +133,19 @@ export class JobService {
 
         await this.waitForPod(podName);
 
-        console.log('pod done!!! READ DATA');
-        // READ DATA
+        const data = await csvtojson().fromFile(
+          path.join(outputPath, 'user.csv'),
+        );
+
+        const [userEntity] = entites;
+
+        for (const item of data) {
+          await connection.getRepository(userEntity).insert(item);
+        }
+
+        await connection.close();
+
+        await this.deletePod(podName);
 
         await this.setJobStatus(job.id, JobStatus.SUCCESS);
       } catch (e) {
@@ -168,6 +186,11 @@ export class JobService {
 
       await new Promise(resolve => setTimeout(resolve, 3000));
     }
+  }
+
+  async deletePod(podName: string) {
+    const reponse = await k8sApi.deleteNamespacedPod(podName, 'default');
+    console.log(reponse);
   }
 
   async run(dataLoaderId: number): Promise<JobEntity> {
