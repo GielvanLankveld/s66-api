@@ -42,7 +42,12 @@ spec:
           volumeMounts:
             - name: dockersock
               mountPath: "/var/run/docker.sock"
+            - name: api-storage
+              mountPath: /api/data
       volumes:
         - name: dockersock
           hostPath:
             path: /var/run/docker.sock
+        - name: api-storage
+          persistentVolumeClaim:
+            claimName: api-pv-claim

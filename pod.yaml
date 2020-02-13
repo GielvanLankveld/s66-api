@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: project1master
+spec:
+  containers:
+    - name: project1master
+      image: project_1_master
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+        - name: api-storage
+          mountPath: /api/data
+      env:
+        - name: DATA_LOADER_OUTPUT
+          value: /api/data
+  restartPolicy: Never
+  volumes:
+    - name: api-storage
+      persistentVolumeClaim:
+        claimName: api-pv-claim

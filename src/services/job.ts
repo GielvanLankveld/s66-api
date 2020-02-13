@@ -12,6 +12,16 @@ import { Queue } from 'bull';
 import { DataLoaderEntity } from 'src/database/entities/dataloader.entity';
 import path = require('path');
 import { SchemeBuilderService } from './scheme-builder';
+import { Config } from 'src/models/config';
+import { JobStep } from 'src/database/enums/jobStep';
+import * as k8s from '@kubernetes/client-node';
+import * as fs from 'fs';
+import generate from 'nanoid/async/generate';
+
+const kc = new k8s.KubeConfig();
+kc.loadFromCluster();
+
+const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
 
 @Injectable()
 export class JobService {
@@ -43,30 +53,88 @@ export class JobService {
       } = job;
 
       await this.setJobStatus(job.id, JobStatus.RUNNING);
-
-      const repo = new Repo(repository.url);
+      await this.setJobStep(job.id, JobStep.DOWNLOADING);
 
       try {
-        await repo.clone(branchName);
-      } catch (e) {
-        throw new ApiException(
-          HttpStatus.INTERNAL_SERVER_ERROR,
-          'error while cloning repo',
+        const repo = new Repo(repository.url);
+
+        try {
+          await repo.clone(branchName);
+        } catch (e) {
+          throw new ApiException(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            'error while cloning repo',
+          );
+        }
+
+        const schemas = await this.schemeBuilder.validateScheme(
+          path.join(repo.dir, 'scheme.json'),
         );
-      }
 
-      const schemas = await schemeBuilder.validateScheme(
-        path.join(repo.dir, 'scheme.json'),
-      );
+        await this.schemeBuilder.generateScheme(schemas, 'test');
 
-      console.log('schemas', schemas);
+        const imageName = await this.build(repo.dir, job);
 
-      try {
-        await this.build(repo.dir, job);
+        console.log('job image: ', imageName);
+
+        const outputPath = `/api/data/job_${job.id}`;
+
+        if (!fs.existsSync(outputPath)) {
+          fs.mkdirSync(outputPath);
+        }
+
+        console.log('creating pod...');
+
+        const podName = `job-${await generate('1234567890abcdef', 10)}`;
+        const pod = await k8sApi.createNamespacedPod('default', {
+          apiVersion: 'v1',
+          kind: 'Pod',
+          metadata: {
+            name: podName,
+          },
+          spec: {
+            containers: [
+              {
+                name: 'loader',
+                image: imageName,
+                imagePullPolicy: 'IfNotPresent',
+                volumeMounts: [
+                  {
+                    name: 'api-storage',
+                    mountPath: '/api/data',
+                  },
+                ],
+                env: [
+                  {
+                    name: 'DATA_LOADER_OUTPUT',
+                    value: outputPath,
+                  },
+                ],
+              },
+            ],
+            restartPolicy: 'Never',
+            volumes: [
+              {
+                name: 'api-storage',
+                persistentVolumeClaim: {
+                  claimName: 'api-pv-claim',
+                },
+              },
+            ],
+          },
+        });
+
+        await this.waitForPod(podName);
+
+        console.log('pod done!!! READ DATA');
+        // READ DATA
+
         await this.setJobStatus(job.id, JobStatus.SUCCESS);
       } catch (e) {
+        console.log(e);
         await this.setJobStatus(job.id, JobStatus.FAILED);
       } finally {
+        await this.setJobStep(job.id, JobStep.FINISHED);
         await this.setJobEndDate(job.id, new Date());
       }
 
@@ -76,6 +144,30 @@ export class JobService {
 
   async get(jobId: number): Promise<JobEntity> {
     return await this.jobRepository.findOne({ id: jobId });
+  }
+
+  async waitForPod(podName: string) {
+    let done = false;
+
+    while (!done) {
+      const { body } = await k8sApi.readNamespacedPodStatus(podName, 'default');
+
+      if (
+        body.status &&
+        body.status.containerStatuses &&
+        body.status.containerStatuses.length > 0
+      ) {
+        const status = body.status.containerStatuses.find(
+          cs => cs.name === 'loader',
+        );
+
+        if (status && status.state && status.state.terminated) {
+          done = true;
+        }
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
   }
 
   async run(dataLoaderId: number): Promise<JobEntity> {
@@ -104,6 +196,15 @@ export class JobService {
       .execute();
   }
 
+  private async setJobStep(jobId: number, jobStep: JobStep) {
+    await this.jobRepository
+      .createQueryBuilder('job')
+      .update()
+      .set({ step: jobStep })
+      .where('job.id = :jobId', { jobId })
+      .execute();
+  }
+
   private async setJobEndDate(jobId: number, date: Date) {
     await this.jobRepository
       .createQueryBuilder('job')
@@ -113,7 +214,7 @@ export class JobService {
       .execute();
   }
 
-  private async build(repoDir: string, job: JobEntity) {
+  private async build(repoDir: string, job: JobEntity): Promise<string> {
     const {
       dataloader: {
         name: dataloaderName,
@@ -121,13 +222,10 @@ export class JobService {
       },
     } = job;
 
-    const build = spawn(
-      'docker',
-      ['build', '-t', `project_${repository.projectId}_${branchName}`, '.'],
-      {
-        cwd: path.join(repoDir, dataloaderName),
-      },
-    );
+    const imageName = `project_${repository.projectId}_${branchName}`;
+    const build = spawn('docker', ['build', '-t', imageName, '.'], {
+      cwd: path.join(repoDir, dataloaderName),
+    });
 
     let logs = '';
     build.stdout.on('data', data => {
@@ -146,7 +244,7 @@ export class JobService {
       logs = '';
     }, 1000);
 
-    await new Promise((resolve, reject) => {
+    return await new Promise<string>((resolve, reject) => {
       build.on('close', async code => {
         clearInterval(interval);
         await this.jobRepository.query(
@@ -155,7 +253,7 @@ export class JobService {
         );
         logs = '';
         if (code === 0) {
-          resolve();
+          resolve(imageName);
         } else {
           reject();
         }

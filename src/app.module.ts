@@ -11,7 +11,7 @@ import { BranchEntity } from './database/entities/branch.entity';
 import { ProjectController } from './controllers/project.controller';
 import { InitialDatabase1581534216930 } from './database/migrations/1581534216930-InitialDatabase';
 import { RepositoryService } from './services/repository';
-import * as Queue from 'bull';
+import Queue from 'bull';
 import { BRANCH_QUEUE, RUN_QUEUE } from './constants';
 import { BranchJob } from './jobs/branch.job';
 import { AddBranchError1581548495214 } from './database/migrations/1581548495214-AddBranchError';

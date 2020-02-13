@@ -26,10 +26,9 @@ export class SchemeBuilderService {
   }
 
   async generateScheme(
-    schemas: [EntitySchemaOptions<any>],
+    schemas: EntitySchemaOptions<any>[],
     databaseName: string,
   ) {
-    console.log(schemas);
     const entitySchemas: EntitySchema[] = [];
     schemas.forEach(schema => {
       entitySchemas.push(new EntitySchema(schema));
