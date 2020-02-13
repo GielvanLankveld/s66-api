@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { RepositoryEntity } from 'src/database/entities/repository.entity';
 import { Repository } from 'typeorm';
@@ -15,6 +15,7 @@ import { BRANCH_QUEUE } from 'src/constants';
 import { Queue } from 'bull';
 import { BranchJob } from 'src/jobs/branch.job';
 import { STATUS_CODES } from 'http';
+import { ApiException } from 'src/exceptions/api.exception';
 
 const fsExists = promisify(fs.exists);
 const tmpDir = promisify(tmp.dir);
@@ -27,13 +28,17 @@ export interface RepoBranch {
 export class Repo {
   public dir: string | null = null;
   private git = simplegit();
-  constructor(public readonly url: string) { }
+  constructor(public readonly url: string) {}
 
   async clone(branchName?: string) {
     try {
       this.dir = await tmpDir();
 
-      await this.git.clone(this.url, this.dir, !!branchName ? ['-b', branchName] : []);
+      await this.git.clone(
+        this.url,
+        this.dir,
+        !!branchName ? ['-b', branchName] : [],
+      );
 
       await this.git.cwd(this.dir);
     } catch (e) {
@@ -44,7 +49,16 @@ export class Repo {
   async branches(): Promise<string[]> {
     const summary = await this.git.branch(['-r']);
 
-    return summary.all.map(name => name.replace('origin/', ''));
+    const branches = summary.all.map(name => {
+      const parts = name.split('/');
+      const branchName = parts[parts.length - 1];
+
+      return branchName;
+    });
+
+    return branches.filter((elem, pos) => {
+      return branches.indexOf(elem) == pos;
+    });
   }
 
   async branch(branchName: string): Promise<RepoBranch> {
@@ -79,38 +93,58 @@ export class RepositoryService {
       });
 
       branch.status = BranchStatus.VALIDATING;
+      branch.error = '';
       await branch.save();
 
       const branchRepo = new Repo(branch.repository.url);
 
-      await branchRepo.clone(branch.name);
-      //Validate branch
-      //Files uitlezen + valideren
+      try {
+        await branchRepo.clone(branch.name);
 
-      const configPath = path.join(branchRepo.dir, 'config.json');
+        const { commitCount } = await branchRepo.branch(branch.name);
+        branch.commits = commitCount;
 
-      const configExists = await fsExists(configPath);
+        //Validate branch
+        //Files uitlezen + valideren
 
-      if (!configExists) {
-        branch.error = 'scheme.json does not exist';
+        const configPath = path.join(branchRepo.dir, 'config.json');
+
+        const configExists = await fsExists(configPath);
+
+        if (!configExists) {
+          throw 'config.json does not exist';
+        }
+
+        // TODO VALIDATION ETC...
+
+        branch.status = BranchStatus.SUCCESS;
+        await branch.save();
+        done();
+      } catch (message) {
+        branch.error = message;
         branch.status = BranchStatus.FAILED;
         await branch.save();
-        return done(Error('scheme.json does not exist'));
+
+        done(Error(message));
+      } finally {
+        await branchRepo.delete();
       }
-
-      console.log(branch);
-
-      branch.status = BranchStatus.SUCCESS;
-      await branch.save();
-
-      setTimeout(() => {
-        done();
-      }, 2000);
     });
   }
 
   async create(addRepositoryDto: AddRepositoryDto): Promise<RepositoryEntity> {
     const { url, projectId } = addRepositoryDto;
+
+    const repositoryCount = await this.repositoryRepository.count({
+      where: { url, projectId },
+    });
+
+    if (repositoryCount > 0) {
+      throw new ApiException(
+        HttpStatus.CONFLICT,
+        'repository already exists in project',
+      );
+    }
 
     const repo = new Repo(url);
 
@@ -124,13 +158,10 @@ export class RepositoryService {
     await this.repositoryRepository.save(repository);
 
     for (const branchName of branchNames) {
-      const { commitCount } = await repo.branch(branchName);
-
       const branch = new BranchEntity();
       branch.name = branchName;
       branch.repositoryId = repository.id;
       branch.status = BranchStatus.PENDING;
-      branch.commits = commitCount;
       branch.error = '';
 
       await this.branchRepository.save(branch);
@@ -142,5 +173,38 @@ export class RepositoryService {
     }
 
     return repository;
+  }
+
+  async webhook(repositoryUrl: string, branchName: string) {
+    const repositories = await this.repositoryRepository.find({
+      url: repositoryUrl,
+    });
+
+    for (const repository of repositories) {
+      const branch = await this.branchRepository.findOne({
+        name: branchName,
+        repositoryId: repository.id,
+      });
+
+      if (branch) {
+        await this.branchQueue.add({
+          branchId: branch.id,
+          repositoryId: repository.id,
+        });
+      } else {
+        const branch = new BranchEntity();
+        branch.name = branchName;
+        branch.repositoryId = repository.id;
+        branch.status = BranchStatus.PENDING;
+        branch.error = '';
+
+        await this.branchRepository.save(branch);
+
+        await this.branchQueue.add({
+          branchId: branch.id,
+          repositoryId: repository.id,
+        });
+      }
+    }
   }
 }

@@ -1,7 +1,8 @@
-import { Controller, Post, Body, Get } from '@nestjs/common';
+import { Controller, Post, Body, Get, HttpStatus } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { ProjectEntity } from 'src/database/entities/project.entity';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ApiException } from 'src/exceptions/api.exception';
 
 @Controller('/project')
 export class ProjectController {
@@ -27,10 +28,10 @@ export class ProjectController {
       .getCount();
 
     if (count > 0) {
-      return {
-        success: false,
-        message: `Project with name: "${body.name}" already exists.`,
-      };
+      throw new ApiException(
+        HttpStatus.CONFLICT,
+        `Project with name: "${body.name}" already exists.`,
+      );
     }
 
     const project = new ProjectEntity();

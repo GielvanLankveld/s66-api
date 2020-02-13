@@ -25,8 +25,8 @@ export class BranchEntity extends BaseEntity {
   @Column({ type: 'enum', enum: BranchStatus })
   status: BranchStatus;
 
-  @Column({ type: 'int' })
-  commits: number;
+  @Column({ type: 'int', nullable: true })
+  commits: number | null;
 
   @ManyToOne(
     type => RepositoryEntity,

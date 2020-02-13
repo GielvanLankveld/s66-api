@@ -22,6 +22,19 @@ export class RepositoryController {
     return { success: true, data: repository };
   }
 
+  @Post('/webhook')
+  async webhook(
+    @Body() body: { ref: string; repository: { clone_url: string } },
+  ) {
+    const repositoryUrl = body.repository.clone_url;
+    const branchParts = body.ref.split('/');
+    const branchName = branchParts[branchParts.length - 1];
+
+    await this.repositoryService.webhook(repositoryUrl, branchName);
+
+    return;
+  }
+
   // @Post('/run')
   // async runRepository(@Body() body: { url: string; branch?: string }) {
 
