@@ -65,7 +65,7 @@ export class JobService {
         try {
           await this.appendLogs(job.id, 'DOWNLOADING REPOSITORY...\n');
           await repo.clone(branchName);
-          await this.appendLogs(job.id, 'FINISHED DOWNLOADING REPOSITORY...\n');
+          await this.appendLogs(job.id, 'FINISHED DOWNLOADING REPOSITORY\n');
         } catch (e) {
           throw new ApiException(
             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -73,18 +73,22 @@ export class JobService {
           );
         }
 
+        await this.appendLogs(job.id, 'VALIDATING SCHEMA...\n');
         const schemas = await this.schemeBuilder.validateScheme(
           path.join(repo.dir, 'scheme.json'),
         );
+        await this.appendLogs(job.id, 'FINISHED VALIDATING SCHEMA\n');
 
+        await this.appendLogs(job.id, 'GENERATING DATABASE SCHEMA...\n');
         const { connection, entites } = await this.schemeBuilder.generateScheme(
           schemas,
           'test',
         );
+        await this.appendLogs(job.id, 'FINISHED GENERATING DATABASE SCHEMA\n');
 
+        await this.appendLogs(job.id, 'BUILDING DATALOADER...\n');
         const imageName = await this.build(repo.dir, job);
-
-        console.log('job image: ', imageName);
+        await this.appendLogs(job.id, 'FINISHED BUILDING DATALOARDER\n');
 
         const outputPath = `/api/data/job_${job.id}`;
 
@@ -92,8 +96,7 @@ export class JobService {
           fs.mkdirSync(outputPath);
         }
 
-        console.log('creating pod...');
-
+        await this.appendLogs(job.id, 'STARTING DATALOADER...\n');
         const podName = `job-${await generate('1234567890abcdef', 10)}`;
         await k8sApi.createNamespacedPod('default', {
           apiVersion: 'v1',
@@ -132,24 +135,30 @@ export class JobService {
             ],
           },
         });
-
+        await this.appendLogs(job.id, 'WAITING FOR DATALOADER TO FINISH...\n');
         await this.waitForPod(podName);
+        await this.appendLogs(job.id, 'DATALOADER FINISHED\n');
 
+        await this.appendLogs(job.id, 'FETCHING DATA...\n');
         const data = await csvtojson().fromFile(
           path.join(outputPath, 'user.csv'),
         );
+        await this.appendLogs(job.id, 'DATA FETCHED FROM DATALOADER\n');
 
         const [userEntity] = entites;
 
+        await this.appendLogs(job.id, 'WRITING TO DATABASE\n');
         for (const item of data) {
           await connection.getRepository(userEntity).insert(item);
         }
 
+        await this.appendLogs(job.id, 'FINISHED WRITING DATA TO DATABASE\n');
         await connection.close();
 
         await this.deletePod(podName);
 
         await this.setJobStatus(job.id, JobStatus.SUCCESS);
+        await this.appendLogs(job.id, 'FINISHED JOB\n');
       } catch (e) {
         console.log(e);
         await this.setJobStatus(job.id, JobStatus.FAILED);
